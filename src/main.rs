@@ -16,7 +16,7 @@ fn index() -> &'static str {
 }
 
 #[post("/user/register", data = "<user_input>")]
-async fn register_user(user_gateway: &State<&mut InMemoryRegistrar>, user_input: Json<UserRegistration>) {
+async fn register_user(user_gateway: &State<InMemoryRegistrar>, user_input: Json<UserRegistration>) {
     user_gateway.save_user(user_input.into_inner()).await;
 }
 
@@ -25,6 +25,7 @@ fn rocket() -> _ {
     rocket::build()
         .manage(InMemoryRegistrar::default())
         .mount("/", routes![index])
+        .mount("/", routes![register_user])
 }
 
 #[cfg(test)]
