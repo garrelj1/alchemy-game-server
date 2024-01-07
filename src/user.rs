@@ -1,6 +1,7 @@
 use rocket::serde::{Deserialize};
 
 pub mod registrar;
+mod password;
 
 struct User {
     username: String

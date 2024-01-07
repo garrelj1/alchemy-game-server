@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use crate::LoginCredentials;
 use crate::user::{User, UserRegistration, UserRegistrationInternal};
 
 pub trait UserRegistrar: Send + Sync + 'static {
-    async fn save_user(&self, user: UserRegistration);
+    fn save_user(&self, user: UserRegistration);
+    fn login_user(&self, login_credentials: LoginCredentials) -> Result<String, >;
 }
 
 #[derive(Default)]
@@ -13,12 +15,12 @@ pub struct InMemoryRegistrar {
 }
 
 impl UserRegistrar for InMemoryRegistrar {
-    async fn save_user(&self, user: UserRegistration) {
+    fn save_user(&self, user: UserRegistration) {
         let internal_registration = UserRegistrationInternal::new(&user);
 
         match self.credential_store.lock() {
             Ok(mut cred_store) => {
-                let credentials = LoginCredentials {
+                let credentials = RegistrationLoginCredentials {
                     password_hash: internal_registration.password_hash,
                     salt: internal_registration.salt
                 };
@@ -42,16 +44,19 @@ impl UserRegistrar for InMemoryRegistrar {
             }
         }
     }
+
+    fn login_user(&self, login_credentials: LoginCredentials) {
+    }
 }
 
 #[derive(Default)]
-struct LoginCredentials {
+pub struct RegistrationLoginCredentials {
     password_hash: String,
     salt: String
 }
 
 #[derive(Default)]
 struct CredentialStore {
-    passwords: HashMap<String, LoginCredentials>
+    passwords: HashMap<String, RegistrationLoginCredentials>
 }
 
