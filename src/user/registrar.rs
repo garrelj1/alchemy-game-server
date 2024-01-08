@@ -1,17 +1,24 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::io;
+use std::sync::{Arc, LockResult, Mutex};
 use crate::LoginCredentials;
 use crate::user::{User, UserRegistration, UserRegistrationInternal};
 
 pub trait UserRegistrar: Send + Sync + 'static {
     fn save_user(&self, user: UserRegistration);
-    fn login_user(&self, login_credentials: LoginCredentials) -> Result<String, >;
+    fn login_user(&self, login_credentials: LoginCredentials) -> Result<String, LoginError>;
 }
 
 #[derive(Default)]
 pub struct InMemoryRegistrar {
     users: Arc<Mutex<Vec<User>>>,
     credential_store: Arc<Mutex<CredentialStore>>
+}
+
+#[derive(Debug)]
+pub enum LoginError {
+    InvalidCredentials(String),
+    OtherError(String),
 }
 
 impl UserRegistrar for InMemoryRegistrar {
@@ -45,7 +52,29 @@ impl UserRegistrar for InMemoryRegistrar {
         }
     }
 
-    fn login_user(&self, login_credentials: LoginCredentials) {
+    fn login_user(&self, login_credentials: LoginCredentials) -> Result<String, LoginError> {
+        match self.credential_store.lock() {
+            Ok(store) => {
+                if let Some(credentials) = store.passwords.get(&login_credentials.username) {
+                    match argon_hash_password::check_password_matches_hash(
+                        login_credentials.password.as_str(),
+                        credentials.password_hash.as_str(),
+                        credentials.salt.as_str()
+                    ) {
+                        Ok(check) => {
+                            match check {
+                                true => Ok(argon_hash_password::gen_session_id()),
+                                false => Err(LoginError::InvalidCredentials(String::from("Invalid password")))
+                            }
+                        },
+                        Err(error) => Err(LoginError::OtherError(error.to_string()))
+                    }
+                } else {
+                    Err(LoginError::InvalidCredentials(String::from("Invalid username")))
+                }
+            }
+            Err(error) => Err(LoginError::OtherError(error.to_string()))
+        }
     }
 }
 
